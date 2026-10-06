@@ -171,7 +171,7 @@ public class DriveCommands {
 
         // Allow modules to orient
         Commands.run(
-                () -> {
+                () -> {   
                   drive.runCharacterization(0.0);
                 },
                 drive)
