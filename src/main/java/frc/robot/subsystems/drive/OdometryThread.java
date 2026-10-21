@@ -23,7 +23,7 @@ import java.util.function.DoubleSupplier;
  * <p>This version includes an overload for Spark signals, which checks for errors to ensure that
  * all measurements in the sample are valid.
  */
-public class SparkOdometryThread {
+public class OdometryThread {
   private final List<SparkBase> sparks = new ArrayList<>();
   private final List<DoubleSupplier> sparkSignals = new ArrayList<>();
   private final List<DoubleSupplier> genericSignals = new ArrayList<>();
@@ -31,17 +31,17 @@ public class SparkOdometryThread {
   private final List<Queue<Double>> genericQueues = new ArrayList<>();
   private final List<Queue<Double>> timestampQueues = new ArrayList<>();
 
-  private static SparkOdometryThread instance = null;
+  private static OdometryThread instance = null;
   private Notifier notifier = new Notifier(this::run);
 
-  public static SparkOdometryThread getInstance() {
+  public static OdometryThread getInstance() {
     if (instance == null) {
-      instance = new SparkOdometryThread();
+      instance = new OdometryThread();
     }
     return instance;
   }
 
-  private SparkOdometryThread() {
+  private OdometryThread() {
     notifier.setName("OdometryThread");
   }
 

@@ -95,7 +95,17 @@ public class ModuleIOSpark implements ModuleIO {
             },
             MotorType.kBrushless);
     driveEncoder = driveSpark.getEncoder();
-    cancoder = new CANcoder(DriveConstants.cancoderID); // TODO: correct cancoder id for multiple
+
+    cancoder =
+        new CANcoder(
+            switch (module) {
+              case 0 -> frontLeftCancoderId;
+              case 1 -> frontRightCancoderId;
+              case 2 -> backLeftCancoderId;
+              case 3 -> backRightCancoderId;
+              default -> 0;
+            });
+
     driveController = driveSpark.getClosedLoopController();
     turnController = new PIDController(1, 0, 0);
 
@@ -156,11 +166,11 @@ public class ModuleIOSpark implements ModuleIO {
     cancoder.getConfigurator().apply(config);
 
     // Create odometry queues
-    timestampQueue = SparkOdometryThread.getInstance().makeTimestampQueue();
+    timestampQueue = OdometryThread.getInstance().makeTimestampQueue();
     drivePositionQueue =
-        SparkOdometryThread.getInstance().registerSignal(driveSpark, driveEncoder::getPosition);
+        OdometryThread.getInstance().registerSignal(driveSpark, driveEncoder::getPosition);
     turnPositionQueue =
-        SparkOdometryThread.getInstance().registerSignal(turnSpark, this::getCancoderPosition);
+        OdometryThread.getInstance().registerSignal(turnSpark, this::getCancoderPosition);
   }
 
   @Override
