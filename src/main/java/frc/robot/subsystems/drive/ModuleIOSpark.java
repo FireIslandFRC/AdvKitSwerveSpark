@@ -24,14 +24,13 @@ import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkClosedLoopController.ArbFFUnits;
 import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
-import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import java.util.Queue;
 import java.util.function.DoubleSupplier;
 
@@ -57,6 +56,8 @@ public class ModuleIOSpark implements ModuleIO {
   private final Queue<Double> drivePositionQueue;
   private final Queue<Double> turnPositionQueue;
 
+  private final int module;
+
   // Connection debouncers
   private final Debouncer driveConnectedDebounce =
       new Debouncer(0.5, Debouncer.DebounceType.kFalling);
@@ -66,6 +67,7 @@ public class ModuleIOSpark implements ModuleIO {
       new Debouncer(0.5, Debouncer.DebounceType.kFalling);
 
   public ModuleIOSpark(int module) {
+    this.module = module;
     zeroRotation =
         switch (module) {
           case 0 -> frontLeftZeroRotation;
@@ -85,7 +87,7 @@ public class ModuleIOSpark implements ModuleIO {
             },
             MotorType.kBrushless);
     turnSpark =
-        new SparkMax(
+        new SparkFlex(
             switch (module) {
               case 0 -> frontLeftTurnCanId;
               case 1 -> frontRightTurnCanId;
@@ -107,7 +109,7 @@ public class ModuleIOSpark implements ModuleIO {
             });
 
     driveController = driveSpark.getClosedLoopController();
-    turnController = new PIDController(1, 0, 0);
+    turnController = new PIDController(.5, 0, 0);
 
     // Configure drive motor
     var driveConfig = new SparkFlexConfig();
@@ -143,7 +145,7 @@ public class ModuleIOSpark implements ModuleIO {
     tryUntilOk(driveSpark, 5, () -> driveEncoder.setPosition(0.0));
 
     // Configure turn motor
-    var turnConfig = new SparkMaxConfig();
+    var turnConfig = new SparkFlexConfig();
     turnConfig
         .inverted(turnInverted)
         .idleMode(IdleMode.kBrake)
@@ -188,7 +190,7 @@ public class ModuleIOSpark implements ModuleIO {
 
     // Update turn inputs
     sparkStickyFault = false;
-    inputs.turnPosition = new Rotation2d(getCancoderPosition()).minus(zeroRotation);
+    inputs.turnPosition = new Rotation2d(getPositionAsRadians()).minus(zeroRotation);
 
     inputs.turnVelocityRadPerSec = cancoder.getVelocity().getValueAsDouble();
     ifOk(
@@ -212,9 +214,14 @@ public class ModuleIOSpark implements ModuleIO {
     turnPositionQueue.clear();
   }
 
-  public double getCancoderPosition() {
+  public double getPositionAsRadians() {
     return cancoder.getPosition().getValueAsDouble()
-        - zeroRotation.getRotations(); // FIXME: correct offset and everything
+        * 2
+        * Math.PI; // WATCHME: may be conveting wrong
+  }
+
+  public double getCancoderPosition() {
+    return cancoder.getPosition().getValueAsDouble();
   }
 
   @Override
@@ -244,6 +251,11 @@ public class ModuleIOSpark implements ModuleIO {
         MathUtil.inputModulus(
             rotation.plus(zeroRotation).getRotations(), turnPIDMinInput, turnPIDMaxInput);
     turnController.setSetpoint(setpoint);
-    turnSpark.set(turnController.calculate(getCancoderPosition()));
+    turnSpark.set(turnController.calculate(getPositionAsRadians()));
+
+    SmartDashboard.putNumber("error" + module, turnController.getError());
+    SmartDashboard.putNumber("SPEED" + module, turnController.calculate(getCancoderPosition()));
+    SmartDashboard.putNumber("set " + module, setpoint);
+    SmartDashboard.putNumber("current " + module, getPositionAsRadians());
   }
 }
