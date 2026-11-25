@@ -7,6 +7,7 @@
 
 package frc.robot.subsystems.drive;
 
+import static edu.wpi.first.units.Units.Radians;
 import static frc.robot.subsystems.drive.DriveConstants.*;
 import static frc.robot.util.SparkUtil.*;
 
@@ -26,7 +27,6 @@ import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
-import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -109,11 +109,13 @@ public class ModuleIOSpark implements ModuleIO {
             });
 
     driveController = driveSpark.getClosedLoopController();
-    turnController = new PIDController(.5, 0, 0);
+    turnController = new PIDController(1, 0, 0);
+    turnController.enableContinuousInput(-Math.PI, Math.PI);
 
     // Configure drive motor
     var driveConfig = new SparkFlexConfig();
     driveConfig
+        .inverted(true)
         .idleMode(IdleMode.kBrake)
         .smartCurrentLimit(driveMotorCurrentLimit)
         .voltageCompensation(12.0);
@@ -190,7 +192,7 @@ public class ModuleIOSpark implements ModuleIO {
 
     // Update turn inputs
     sparkStickyFault = false;
-    inputs.turnPosition = new Rotation2d(getPositionAsRadians()).minus(zeroRotation);
+    inputs.turnPosition = new Rotation2d(getPositionAsRadians());
 
     inputs.turnVelocityRadPerSec = cancoder.getVelocity().getValueAsDouble();
     ifOk(
@@ -214,14 +216,24 @@ public class ModuleIOSpark implements ModuleIO {
     turnPositionQueue.clear();
   }
 
-  public double getPositionAsRadians() {
-    return cancoder.getPosition().getValueAsDouble()
-        * 2
-        * Math.PI; // WATCHME: may be conveting wrong
-  }
+  //   public double getPositionAsRadians() {
+  //     return cancoder.getPosition().getValueAsDouble()
+  //         * 2
+  //         * Math.PI; // WATCHME: may be conveting wrong
+  //   }
 
   public double getCancoderPosition() {
     return cancoder.getPosition().getValueAsDouble();
+  }
+
+  //   public double getPositionAsRadians() {
+  //     return cancoder.getPosition().getValue().in(Radians)
+  //         - zeroRotation.getRadians(); // NOTE: I think this is correct but technacly untested
+  //   }
+
+  public double getPositionAsRadians() {
+    return cancoder.getAbsolutePosition().getValue().in(Radians)
+        - zeroRotation.getRadians(); // NOTE: I think this is correct but technacly untested
   }
 
   @Override
@@ -247,15 +259,26 @@ public class ModuleIOSpark implements ModuleIO {
 
   @Override
   public void setTurnPosition(Rotation2d rotation) {
-    double setpoint =
-        MathUtil.inputModulus(
-            rotation.plus(zeroRotation).getRotations(), turnPIDMinInput, turnPIDMaxInput);
+    // double setpoint =
+    //     MathUtil.inputModulus(
+    //        // Unused
+    //         rotation.plus(zeroRotation).getRotations(), turnPIDMinInput, turnPIDMaxInput);
+
+    double setpoint = rotation.getRadians();
+
     turnController.setSetpoint(setpoint);
     turnSpark.set(turnController.calculate(getPositionAsRadians()));
 
     SmartDashboard.putNumber("error" + module, turnController.getError());
-    SmartDashboard.putNumber("SPEED" + module, turnController.calculate(getCancoderPosition()));
-    SmartDashboard.putNumber("set " + module, setpoint);
+    SmartDashboard.putNumber("SPEED" + module, turnController.calculate(getPositionAsRadians()));
+    SmartDashboard.putNumber("setpoint " + module, setpoint);
     SmartDashboard.putNumber("current " + module, getPositionAsRadians());
+
+    SmartDashboard.putNumber(
+        "cancoder.getPosition().getValueAsDouble()" + module,
+        cancoder.getPosition().getValueAsDouble() * 2 * Math.PI);
+    SmartDashboard.putNumber(
+        "cancoder.getPosition().getValue().in(Radians);" + module,
+        cancoder.getPosition().getValue().in(Radians));
   }
 }
